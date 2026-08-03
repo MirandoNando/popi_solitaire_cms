@@ -60,7 +60,32 @@ Di Firebase Console:
 
 Pastikan Firestore database dan Storage bucket sudah dibuat.
 
-### 4. Test
+### 4. CORS Storage (wajib untuk GitHub Pages)
+
+Upload dari browser (`mirandonando.github.io`) akan kena **CORS error** kalau belum di-set.
+
+Login Google Cloud dengan akun **owner** project `popi-solitaire`, lalu:
+
+```bash
+cd popi_solitaire_cms
+gcloud auth login
+gcloud config set project popi-solitaire
+
+# Cek nama bucket (biasanya salah satu ini)
+gcloud storage buckets list
+
+# Set CORS (ganti bucket jika beda)
+gsutil cors set cors.json gs://popi-solitaire.firebasestorage.app
+
+# Verifikasi
+gsutil cors get gs://popi-solitaire.firebasestorage.app
+```
+
+Kalau bucket-nya `popi-solitaire.appspot.com`, pakai path itu.
+
+Setelah CORS OK, hard refresh CMS lalu upload lagi.
+
+### 5. Test
 
 1. Buka URL Pages
 2. Login dengan akun admin

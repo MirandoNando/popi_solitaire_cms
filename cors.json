@@ -1,0 +1,21 @@
+[
+  {
+    "origin": [
+      "https://mirandonando.github.io",
+      "http://localhost:8080",
+      "http://localhost:5500",
+      "http://127.0.0.1:8080"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "Content-Length",
+      "User-Agent",
+      "x-goog-resumable",
+      "x-firebase-storage-version",
+      "x-goog-meta-*"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
