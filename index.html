@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Popi Solitaire CMS</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="login-view" class="view">
+    <div class="login-shell">
+      <p class="brand">Popi Solitaire</p>
+      <h1>CMS Emoticon</h1>
+      <p class="sub">Login admin untuk upload sprite &amp; publish config ke Unity.</p>
+      <form id="login-form">
+        <label>
+          Email
+          <input type="email" id="login-email" required autocomplete="username" placeholder="admin@example.com" />
+        </label>
+        <label>
+          Password
+          <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <button type="submit" class="btn primary">Masuk</button>
+        <p id="login-error" class="error" hidden></p>
+      </form>
+    </div>
+  </div>
+
+  <div id="app-view" class="view" hidden>
+    <header class="topbar">
+      <div>
+        <p class="brand">Popi Solitaire</p>
+        <h1>CMS Emoticon</h1>
+      </div>
+      <div class="topbar-actions">
+        <span id="user-email" class="user-email"></span>
+        <button type="button" id="logout-btn" class="btn ghost">Logout</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Config publish</h2>
+          <p>Dokumen Firestore: <code>emoticon_cms/current</code> — format sama dengan Unity <code>EmoticonCMSConfig</code>.</p>
+        </div>
+        <div class="config-row">
+          <label>
+            Config version
+            <input type="text" id="config-version" value="1.0.0" placeholder="1.0.0" />
+          </label>
+          <button type="button" id="publish-btn" class="btn primary">Publish ke Firebase</button>
+          <button type="button" id="reload-btn" class="btn ghost">Reload</button>
+        </div>
+        <p id="status-msg" class="status" role="status"></p>
+        <pre id="json-preview" class="json-preview" aria-label="JSON preview"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Tambah / edit emoticon</h2>
+          <p>Upload gambar ke Storage, lalu masukkan ke list aktif.</p>
+        </div>
+        <form id="emoticon-form" class="form-grid">
+          <label>
+            Emoticon ID
+            <input type="text" id="emoticon-id" required pattern="[A-Za-z0-9_\-]+" placeholder="emo_smile" />
+          </label>
+          <label>
+            Hex color
+            <input type="text" id="hex-color" pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$" placeholder="#FFCC00" value="#FFCC00" />
+          </label>
+          <label class="full">
+            Sprite image (PNG / WebP / JPG)
+            <input type="file" id="sprite-file" accept="image/png,image/webp,image/jpeg" />
+          </label>
+          <div class="preview-box full">
+            <img id="sprite-preview" alt="Preview sprite" hidden />
+            <span id="preview-placeholder">Preview muncul di sini</span>
+          </div>
+          <div class="form-actions full">
+            <button type="submit" class="btn primary" id="save-emoticon-btn">Simpan emoticon</button>
+            <button type="button" class="btn ghost" id="reset-form-btn">Reset form</button>
+          </div>
+          <p id="form-error" class="error full" hidden></p>
+        </form>
+      </section>
+
+      <section class="panel full-width">
+        <div class="panel-head">
+          <h2>Active emoticons</h2>
+          <p id="emoticon-count">0 item</p>
+        </div>
+        <div id="emoticon-list" class="emoticon-list"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
