@@ -63,27 +63,30 @@
       <section class="panel">
         <div class="panel-head">
           <h2>Tambah / edit emoticon</h2>
-          <p>Upload gambar ke Storage, lalu masukkan ke list aktif.</p>
+          <p>Drag &amp; drop banyak gambar sekaligus. ID otomatis dari nama file jika dikosongkan.</p>
         </div>
         <form id="emoticon-form" class="form-grid">
           <label>
             Emoticon ID
-            <input type="text" id="emoticon-id" required pattern="[A-Za-z0-9_\-]+" placeholder="emo_smile" />
+            <input type="text" id="emoticon-id" pattern="[A-Za-z0-9_\-]*" placeholder="kosongkan = nama file" />
+            <span class="field-hint">Opsional. Multi-file selalu pakai nama file.</span>
           </label>
           <label>
             Hex color
             <input type="text" id="hex-color" pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$" placeholder="#FFCC00" value="#FFCC00" />
           </label>
-          <label class="full">
-            Sprite image (PNG / WebP / JPG)
-            <input type="file" id="sprite-file" accept="image/png,image/webp,image/jpeg" />
-          </label>
+          <div id="drop-zone" class="drop-zone full" tabindex="0" role="button" aria-label="Drop zone upload sprite">
+            <input type="file" id="sprite-file" accept="image/png,image/webp,image/jpeg" multiple hidden />
+            <p class="drop-title">Drag &amp; drop gambar di sini</p>
+            <p class="drop-sub">atau klik untuk pilih banyak file (PNG / WebP / JPG)</p>
+          </div>
+          <div id="file-queue" class="file-queue full" hidden></div>
           <div class="preview-box full">
             <img id="sprite-preview" alt="Preview sprite" hidden />
             <span id="preview-placeholder">Preview muncul di sini</span>
           </div>
           <div class="form-actions full">
-            <button type="submit" class="btn primary" id="save-emoticon-btn">Simpan emoticon</button>
+            <button type="submit" class="btn primary" id="save-emoticon-btn">Upload &amp; simpan</button>
             <button type="button" class="btn ghost" id="reset-form-btn">Reset form</button>
           </div>
           <p id="form-error" class="error full" hidden></p>

@@ -32,6 +32,7 @@ const firebaseConfig = {
 
 const CONFIG_PATH = { collection: "emoticon_cms", docId: "current" };
 const STORAGE_PREFIX = "emoticons";
+const IMAGE_TYPES = new Set(["image/png", "image/webp", "image/jpeg", "image/jpg"]);
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -53,6 +54,8 @@ const emoticonForm = document.getElementById("emoticon-form");
 const emoticonIdInput = document.getElementById("emoticon-id");
 const hexColorInput = document.getElementById("hex-color");
 const spriteFileInput = document.getElementById("sprite-file");
+const dropZone = document.getElementById("drop-zone");
+const fileQueueEl = document.getElementById("file-queue");
 const spritePreview = document.getElementById("sprite-preview");
 const previewPlaceholder = document.getElementById("preview-placeholder");
 const saveEmoticonBtn = document.getElementById("save-emoticon-btn");
@@ -68,7 +71,8 @@ let draftConfig = {
 };
 
 let editingId = null;
-let pendingFile = null;
+/** @type {File[]} */
+let pendingFiles = [];
 
 function setStatus(message, type = "") {
   statusMsg.textContent = message;
@@ -111,7 +115,7 @@ function refreshPreview() {
 function renderList() {
   const items = draftConfig.activeEmoticons;
   if (!items.length) {
-    emoticonList.innerHTML = `<div class="empty-state">Belum ada emoticon. Upload sprite pertama di form atas.</div>`;
+    emoticonList.innerHTML = `<div class="empty-state">Belum ada emoticon. Drag & drop sprite di form atas.</div>`;
     return;
   }
 
@@ -145,17 +149,56 @@ function escapeAttr(value) {
   return escapeHtml(value).replaceAll("'", "&#39;");
 }
 
+/** Convert filename to valid emoticonId, e.g. "Emo Smile.PNG" -> "emo_smile" */
+function idFromFilename(filename) {
+  const base = String(filename).replace(/\.[^.]+$/, "");
+  const cleaned = base
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_\-]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return cleaned;
+}
+
+function isImageFile(file) {
+  if (!file) return false;
+  if (file.type && IMAGE_TYPES.has(file.type)) return true;
+  return /\.(png|jpe?g|webp)$/i.test(file.name || "");
+}
+
+function uniqueId(baseId, usedIds) {
+  if (!usedIds.has(baseId)) return baseId;
+  let i = 2;
+  while (usedIds.has(`${baseId}_${i}`)) i += 1;
+  return `${baseId}_${i}`;
+}
+
+function resolveIdForFile(file, overrideId, usedIds) {
+  const fromName = idFromFilename(file.name);
+  const preferred = (overrideId || fromName || "emoticon").trim();
+  if (!/^[A-Za-z0-9_\-]+$/.test(preferred)) {
+    throw new Error(`ID tidak valid dari file "${file.name}". Rename file atau isi ID manual.`);
+  }
+  const finalId = uniqueId(preferred, usedIds);
+  usedIds.add(finalId);
+  return finalId;
+}
+
 function resetForm() {
   editingId = null;
-  pendingFile = null;
+  pendingFiles = [];
   emoticonForm.reset();
   hexColorInput.value = "#FFCC00";
   spritePreview.hidden = true;
   spritePreview.removeAttribute("src");
   previewPlaceholder.hidden = false;
+  fileQueueEl.hidden = true;
+  fileQueueEl.innerHTML = "";
   setFormError("");
-  saveEmoticonBtn.textContent = "Simpan emoticon";
+  saveEmoticonBtn.textContent = "Upload & simpan";
   emoticonIdInput.disabled = false;
+  dropZone.classList.remove("dragover");
 }
 
 function fillForm(item) {
@@ -163,8 +206,10 @@ function fillForm(item) {
   emoticonIdInput.value = item.emoticonId;
   emoticonIdInput.disabled = true;
   hexColorInput.value = item.hexColorCode || "#FFCC00";
-  pendingFile = null;
+  pendingFiles = [];
   spriteFileInput.value = "";
+  fileQueueEl.hidden = true;
+  fileQueueEl.innerHTML = "";
   if (item.spriteUrl) {
     spritePreview.src = item.spriteUrl;
     spritePreview.hidden = false;
@@ -174,13 +219,76 @@ function fillForm(item) {
   setFormError("");
 }
 
+function previewQueueIds() {
+  const overrideId = emoticonIdInput.value.trim();
+  const usedIds = new Set(draftConfig.activeEmoticons.map((item) => item.emoticonId));
+  if (editingId) usedIds.delete(editingId);
+
+  return pendingFiles.map((file) => {
+    try {
+      if (editingId && pendingFiles.length === 1) return editingId;
+      const manual = pendingFiles.length === 1 ? overrideId : "";
+      return resolveIdForFile(file, manual, usedIds);
+    } catch {
+      return "(rename file)";
+    }
+  });
+}
+
+function renderFileQueue() {
+  if (!pendingFiles.length) {
+    fileQueueEl.hidden = true;
+    fileQueueEl.innerHTML = "";
+    spritePreview.hidden = true;
+    spritePreview.removeAttribute("src");
+    previewPlaceholder.hidden = false;
+    return;
+  }
+
+  const ids = previewQueueIds();
+  fileQueueEl.hidden = false;
+  fileQueueEl.innerHTML = pendingFiles
+    .map(
+      (file, index) =>
+        `<div class="file-queue-item"><strong>${escapeHtml(ids[index])}</strong><span>${escapeHtml(file.name)}</span></div>`
+    )
+    .join("");
+
+  const url = URL.createObjectURL(pendingFiles[0]);
+  spritePreview.src = url;
+  spritePreview.hidden = false;
+  previewPlaceholder.hidden = true;
+}
+
+function setPendingFiles(fileList) {
+  const images = Array.from(fileList || []).filter(isImageFile);
+  if (!images.length) {
+    setFormError("Tidak ada file gambar yang valid (PNG / WebP / JPG).");
+    return;
+  }
+
+  if (editingId && images.length > 1) {
+    setFormError("Mode edit hanya menerima 1 file. Lepas edit dulu untuk multi-upload.");
+    return;
+  }
+
+  setFormError("");
+  pendingFiles = images;
+  renderFileQueue();
+
+  // Single file: auto-fill ID from filename when field empty and not editing
+  if (!editingId && pendingFiles.length === 1 && !emoticonIdInput.value.trim()) {
+    emoticonIdInput.placeholder = idFromFilename(pendingFiles[0].name) || "kosongkan = nama file";
+  }
+}
+
 async function loadConfig() {
   setStatus("Memuat config dari Firestore...");
   const snap = await getDoc(configDocRef());
   if (!snap.exists()) {
     draftConfig = { configVersion: "1.0.0", activeEmoticons: [] };
     refreshPreview();
-    setStatus("Belum ada dokumen. Buat emoticon lalu Publish.", "ok");
+    setStatus("Belum ada dokumen. Upload emoticon lalu Publish.", "ok");
     return;
   }
 
@@ -233,63 +341,89 @@ async function uploadSprite(emoticonId, file) {
   return getDownloadURL(storageRef);
 }
 
+function upsertEmoticon(item) {
+  const index = draftConfig.activeEmoticons.findIndex((entry) => entry.emoticonId === item.emoticonId);
+  if (index === -1) draftConfig.activeEmoticons.push(item);
+  else draftConfig.activeEmoticons[index] = item;
+}
+
 async function saveEmoticon(event) {
   event.preventDefault();
   setFormError("");
 
-  const emoticonId = emoticonIdInput.value.trim();
   const hexColorCode = hexColorInput.value.trim();
-
-  if (!/^[A-Za-z0-9_\-]+$/.test(emoticonId)) {
-    setFormError("emoticonId hanya boleh huruf, angka, _ atau -");
-    return;
-  }
-
   if (hexColorCode && !/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(hexColorCode)) {
     setFormError("hexColorCode harus format #RGB atau #RRGGBB");
     return;
   }
 
-  const existingIndex = draftConfig.activeEmoticons.findIndex(
-    (item) => item.emoticonId === emoticonId
-  );
-
-  if (!editingId && existingIndex !== -1) {
-    setFormError("emoticonId sudah ada. Edit item yang existing, atau pakai ID baru.");
+  // Edit existing without replacing image
+  if (editingId && pendingFiles.length === 0) {
+    const index = draftConfig.activeEmoticons.findIndex((item) => item.emoticonId === editingId);
+    if (index === -1) {
+      setFormError("Item edit tidak ditemukan.");
+      return;
+    }
+    draftConfig.activeEmoticons[index] = {
+      ...draftConfig.activeEmoticons[index],
+      hexColorCode,
+    };
+    refreshPreview();
+    resetForm();
+    setStatus(`${editingId} diupdate di draft. Klik Publish untuk Unity.`, "ok");
     return;
   }
 
-  if (!editingId && !pendingFile) {
-    setFormError("Pilih file gambar untuk emoticon baru.");
+  if (!pendingFiles.length) {
+    setFormError("Pilih atau drop minimal 1 gambar.");
     return;
+  }
+
+  const overrideId = emoticonIdInput.value.trim();
+  if (pendingFiles.length === 1 && overrideId && !/^[A-Za-z0-9_\-]+$/.test(overrideId)) {
+    setFormError("emoticonId hanya boleh huruf, angka, _ atau -");
+    return;
+  }
+
+  if (editingId && pendingFiles.length === 1) {
+    // Keep editing id; ignore filename for id
+  } else if (pendingFiles.length > 1 && overrideId) {
+    // Multi-upload ignores manual ID — filename wins
   }
 
   saveEmoticonBtn.disabled = true;
+  const usedIds = new Set(draftConfig.activeEmoticons.map((item) => item.emoticonId));
+  if (editingId) usedIds.delete(editingId);
+
+  const savedIds = [];
   try {
-    let spriteUrl =
-      existingIndex !== -1 ? draftConfig.activeEmoticons[existingIndex].spriteUrl : "";
+    for (let i = 0; i < pendingFiles.length; i += 1) {
+      const file = pendingFiles[i];
+      let emoticonId;
+      if (editingId && pendingFiles.length === 1) {
+        emoticonId = editingId;
+      } else {
+        const manual = pendingFiles.length === 1 ? overrideId : "";
+        emoticonId = resolveIdForFile(file, manual, usedIds);
+      }
 
-    if (pendingFile) {
-      setStatus(`Upload ${emoticonId} ke Storage...`);
-      spriteUrl = await uploadSprite(emoticonId, pendingFile);
+      setStatus(`Upload ${i + 1}/${pendingFiles.length}: ${emoticonId}...`);
+      const spriteUrl = await uploadSprite(emoticonId, file);
+      upsertEmoticon({ emoticonId, spriteUrl, hexColorCode });
+      savedIds.push(emoticonId);
     }
 
-    const nextItem = { emoticonId, spriteUrl, hexColorCode };
-
-    if (existingIndex === -1) {
-      draftConfig.activeEmoticons.push(nextItem);
-    } else {
-      draftConfig.activeEmoticons[existingIndex] = nextItem;
-    }
-
-    // Bump patch version hint locally; user still controls final publish version.
     refreshPreview();
     resetForm();
-    setStatus(`Emoticon ${emoticonId} disimpan di draft. Klik Publish untuk Unity.`, "ok");
+    setStatus(
+      `${savedIds.length} emoticon disimpan di draft (${savedIds.join(", ")}). Klik Publish untuk Unity.`,
+      "ok"
+    );
   } catch (error) {
     console.error(error);
     setFormError(error.message || "Gagal menyimpan emoticon");
     setStatus(error.message || "Gagal upload", "err");
+    refreshPreview();
   } finally {
     saveEmoticonBtn.disabled = false;
   }
@@ -373,20 +507,52 @@ configVersionInput.addEventListener("change", () => {
 emoticonForm.addEventListener("submit", saveEmoticon);
 resetFormBtn.addEventListener("click", resetForm);
 
-spriteFileInput.addEventListener("change", () => {
-  const file = spriteFileInput.files?.[0] || null;
-  pendingFile = file;
-  if (!file) {
-    if (!editingId) {
-      spritePreview.hidden = true;
-      previewPlaceholder.hidden = false;
-    }
-    return;
+emoticonIdInput.addEventListener("input", () => {
+  if (pendingFiles.length) renderFileQueue();
+});
+
+dropZone.addEventListener("click", () => spriteFileInput.click());
+dropZone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    spriteFileInput.click();
   }
-  const url = URL.createObjectURL(file);
-  spritePreview.src = url;
-  spritePreview.hidden = false;
-  previewPlaceholder.hidden = true;
+});
+
+spriteFileInput.addEventListener("change", () => {
+  if (spriteFileInput.files?.length) setPendingFiles(spriteFileInput.files);
+});
+
+["dragenter", "dragover"].forEach((type) => {
+  dropZone.addEventListener(type, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dropZone.classList.add("dragover");
+  });
+});
+
+["dragleave", "dragend"].forEach((type) => {
+  dropZone.addEventListener(type, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dropZone.classList.remove("dragover");
+  });
+});
+
+dropZone.addEventListener("drop", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  dropZone.classList.remove("dragover");
+  if (event.dataTransfer?.files?.length) {
+    setPendingFiles(event.dataTransfer.files);
+  }
+});
+
+// Prevent browser from opening dropped files outside the zone
+["dragover", "drop"].forEach((type) => {
+  window.addEventListener(type, (event) => {
+    event.preventDefault();
+  });
 });
 
 emoticonList.addEventListener("click", (event) => {

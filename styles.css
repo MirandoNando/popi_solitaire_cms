@@ -260,6 +260,78 @@ input:focus {
   margin-top: 0.5rem;
 }
 
+.field-hint {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.drop-zone {
+  min-height: 150px;
+  border: 1.5px dashed var(--line);
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(15, 122, 87, 0.04);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  margin-bottom: 0.35rem;
+}
+
+.drop-zone:hover,
+.drop-zone:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.drop-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(15, 122, 87, 0.1);
+  transform: scale(1.01);
+}
+
+.drop-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.drop-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.file-queue {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+
+.file-queue-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+.file-queue-item strong {
+  font-weight: 700;
+}
+
+.file-queue-item span {
+  color: var(--muted);
+  word-break: break-all;
+}
+
 .preview-box {
   min-height: 140px;
   border: 1px dashed var(--line);

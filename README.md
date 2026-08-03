@@ -11,6 +11,8 @@ Setelah Pages aktif:
 ## Fitur
 
 - Login admin (Firebase Auth Email/Password)
+- Drag & drop **multiple** gambar sekaligus
+- `emoticonId` otomatis dari nama file jika field ID dikosongkan (multi-file selalu pakai nama file)
 - Upload gambar → Storage path `emoticons/{emoticonId}.{ext}`
 - Draft list emoticon + Publish ke Firestore `emoticon_cms/current`
 - JSON output cocok dengan Unity:
