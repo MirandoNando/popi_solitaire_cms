@@ -400,6 +400,25 @@ textarea {
   font-size: 0.92rem;
 }
 
+/* Compact preview for quote icon form */
+#tab-quotes .preview-box {
+  min-height: 96px;
+  max-width: 160px;
+}
+
+#tab-quotes .preview-box img {
+  width: 72px;
+  height: 72px;
+  max-height: 72px;
+  object-fit: cover;
+  border-radius: 14px;
+}
+
+#tab-quotes .drop-zone {
+  min-height: 110px;
+  padding: 1rem;
+}
+
 .emoticon-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -440,6 +459,97 @@ textarea {
   gap: 0.5rem;
 }
 
+/* Quotes list — compact responsive rows */
+.quote-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.quote-row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 0.85rem 1rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0.75rem 0.9rem;
+  background: #fff;
+}
+
+.quote-thumb,
+.quote-thumb-empty {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #f3efe6;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+.quote-thumb-empty {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.quote-meta {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.quote-meta-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.65rem;
+  align-items: center;
+}
+
+.quote-id {
+  font-size: 0.95rem;
+}
+
+.quote-cat {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(15, 122, 87, 0.1);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.quote-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.quote-text-id {
+  opacity: 0.9;
+}
+
+.quote-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.quote-actions .btn {
+  padding: 0.55rem 0.9rem;
+  font-size: 0.88rem;
+}
+
 .empty-state {
   grid-column: 1 / -1;
   padding: 2rem;
@@ -461,5 +571,63 @@ textarea {
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .cms-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .quote-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+    grid-template-areas:
+      "thumb meta"
+      "actions actions";
+  }
+
+  .quote-thumb,
+  .quote-thumb-empty {
+    width: 48px;
+    height: 48px;
+    grid-area: thumb;
+  }
+
+  .quote-meta {
+    grid-area: meta;
+  }
+
+  .quote-actions {
+    grid-area: actions;
+    justify-content: stretch;
+  }
+
+  .quote-actions .btn {
+    flex: 1;
+    text-align: center;
+  }
+
+  #tab-quotes .preview-box {
+    max-width: none;
+  }
+
+  .config-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .config-row .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .quote-text {
+    -webkit-line-clamp: 3;
   }
 }

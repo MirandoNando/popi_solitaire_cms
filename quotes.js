@@ -206,24 +206,26 @@ function refreshQuotePreview() {
   if (!quoteList) return;
 
   if (!draftQuotes.quotes.length) {
-    quoteList.innerHTML = `<p class="empty">Belum ada quote. Klik <strong>Isi contoh</strong> atau tambah manual, lalu Publish.</p>`;
+    quoteList.innerHTML = `<div class="empty-state">Belum ada quote. Klik <strong>Isi contoh</strong> atau tambah manual, lalu Publish.</div>`;
     return;
   }
 
   quoteList.innerHTML = draftQuotes.quotes
     .map((q) => {
       const icon = q.iconUrl
-        ? `<img src="${escapeHtml(q.iconUrl)}" alt="" class="emo-thumb" />`
-        : `<div class="emo-thumb emo-thumb-empty">${escapeHtml(categoryLabel(q.category)[0] || "✦")}</div>`;
-      return `<article class="emo-card" data-id="${escapeHtml(q.id)}">
+        ? `<img src="${escapeHtml(q.iconUrl)}" alt="" class="quote-thumb" loading="lazy" />`
+        : `<div class="quote-thumb quote-thumb-empty" aria-hidden="true">${escapeHtml(categoryLabel(q.category)[0] || "✦")}</div>`;
+      return `<article class="quote-row" data-id="${escapeHtml(q.id)}">
         ${icon}
-        <div class="emo-meta">
-          <strong>${escapeHtml(q.id)}</strong>
-          <span class="field-hint">${escapeHtml(categoryLabel(q.category))}</span>
-          <span>${escapeHtml(q.textEn || "")}</span>
-          <span>${escapeHtml(q.textId || "")}</span>
+        <div class="quote-meta">
+          <div class="quote-meta-top">
+            <strong class="quote-id">${escapeHtml(q.id)}</strong>
+            <span class="quote-cat">${escapeHtml(categoryLabel(q.category))}</span>
+          </div>
+          <p class="quote-text quote-text-en">${escapeHtml(q.textEn || "")}</p>
+          <p class="quote-text quote-text-id">${escapeHtml(q.textId || "")}</p>
         </div>
-        <div class="emo-actions">
+        <div class="quote-actions">
           <button type="button" class="btn ghost" data-act="edit">Edit</button>
           <button type="button" class="btn danger" data-act="delete">Hapus</button>
         </div>
@@ -494,7 +496,7 @@ function wireQuoteUi() {
   quoteList?.addEventListener("click", (event) => {
     const btn = event.target.closest("button[data-act]");
     if (!btn) return;
-    const card = btn.closest(".emo-card");
+    const card = btn.closest(".quote-row");
     const id = card?.getAttribute("data-id");
     if (!id) return;
     if (btn.getAttribute("data-act") === "edit") editQuote(id);
