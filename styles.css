@@ -175,6 +175,52 @@ input:focus {
   align-items: center;
 }
 
+.cms-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0 clamp(1rem, 4vw, 2.5rem) 1rem;
+}
+
+.cms-tab {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(255, 253, 248, 0.75);
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  padding: 0.65rem 1.1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.cms-tab.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  font: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+
+textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  font: inherit;
+  background: #fff;
+  color: var(--ink);
+}
+
 .layout {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

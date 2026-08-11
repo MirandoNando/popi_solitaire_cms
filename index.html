@@ -34,7 +34,7 @@
     <header class="topbar">
       <div>
         <p class="brand">Popi Solitaire</p>
-        <h1>CMS Emoticon</h1>
+        <h1>CMS</h1>
       </div>
       <div class="topbar-actions">
         <span id="user-email" class="user-email"></span>
@@ -42,7 +42,12 @@
       </div>
     </header>
 
-    <main class="layout">
+    <nav class="cms-tabs" aria-label="CMS sections">
+      <button type="button" class="cms-tab is-active" data-tab="emoticons">Emoticons</button>
+      <button type="button" class="cms-tab" data-tab="quotes">Quotes</button>
+    </nav>
+
+    <main class="layout" id="tab-emoticons">
       <section class="panel">
         <div class="panel-head">
           <h2>Config publish</h2>
@@ -101,8 +106,82 @@
         <div id="emoticon-list" class="emoticon-list"></div>
       </section>
     </main>
+
+    <main class="layout" id="tab-quotes" hidden>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Quotes publish</h2>
+          <p>Dokumen Firestore: <code>quotes_cms/current</code> — Unity pilih acak tiap masuk Home.</p>
+        </div>
+        <div class="config-row">
+          <label>
+            Config version
+            <input type="text" id="quote-config-version" value="1.0.0" placeholder="1.0.0" />
+          </label>
+          <button type="button" id="quote-publish-btn" class="btn primary">Publish quotes</button>
+          <button type="button" id="quote-reload-btn" class="btn ghost">Reload</button>
+          <button type="button" id="quote-seed-btn" class="btn ghost">Isi contoh</button>
+        </div>
+        <p id="quote-status-msg" class="status" role="status"></p>
+        <pre id="quote-json-preview" class="json-preview" aria-label="Quotes JSON preview"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Tambah / edit quote</h2>
+          <p>Isi teks EN &amp; ID + icon opsional (upload gambar).</p>
+        </div>
+        <form id="quote-form" class="form-grid">
+          <label>
+            Quote ID
+            <input type="text" id="quote-id" pattern="[A-Za-z0-9_\-]*" placeholder="auto jika kosong" />
+          </label>
+          <label>
+            Kategori
+            <select id="quote-category">
+              <option value="motivational">Motivational / Penyemangat</option>
+              <option value="calm">Calm / Tenang</option>
+              <option value="comfort">Comfort / Sedih</option>
+              <option value="science">Science / Ilmiah</option>
+              <option value="fun">Fun / Ceria</option>
+            </select>
+          </label>
+          <label class="full">
+            English
+            <textarea id="quote-text-en" rows="3" required placeholder="A calm mind clears the board."></textarea>
+          </label>
+          <label class="full">
+            Bahasa Indonesia
+            <textarea id="quote-text-id" rows="3" required placeholder="Pikiran tenang membersihkan papan."></textarea>
+          </label>
+          <div id="quote-drop-zone" class="drop-zone full" tabindex="0" role="button" aria-label="Drop zone quote icon">
+            <input type="file" id="quote-icon-file" accept="image/png,image/webp,image/jpeg" hidden />
+            <p class="drop-title">Icon quote (opsional)</p>
+            <p class="drop-sub">Drag &amp; drop / klik — PNG / WebP / JPG</p>
+          </div>
+          <div class="preview-box full">
+            <img id="quote-icon-preview" alt="Preview icon" hidden />
+            <span id="quote-preview-placeholder">Preview icon</span>
+          </div>
+          <div class="form-actions full">
+            <button type="submit" class="btn primary" id="quote-save-btn">Simpan ke draft</button>
+            <button type="button" class="btn ghost" id="quote-reset-btn">Reset form</button>
+          </div>
+          <p id="quote-form-error" class="error full" hidden></p>
+        </form>
+      </section>
+
+      <section class="panel full-width">
+        <div class="panel-head">
+          <h2>Active quotes</h2>
+          <p id="quote-count">0 item</p>
+        </div>
+        <div id="quote-list" class="emoticon-list"></div>
+      </section>
+    </main>
   </div>
 
   <script type="module" src="app.js"></script>
+  <script type="module" src="quotes.js"></script>
 </body>
 </html>

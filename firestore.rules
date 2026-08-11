@@ -1,11 +1,21 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // CMS config — readable with app Firebase session (anonymous OK). No player login required.
     match /emoticon_cms/{docId} {
-      // Unity / client game: read only
-      allow read: if true;
-      // CMS admin: write only when logged in
+      allow read: if request.auth != null;
       allow write: if request.auth != null;
+    }
+
+    // Home quote panel config (CMS Quotes tab).
+    match /quotes_cms/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Player profiles (AuthManager Register / Profile).
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
     match /{document=**} {
