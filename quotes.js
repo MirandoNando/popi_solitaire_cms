@@ -508,11 +508,14 @@ refreshQuotePreview();
 
 onAuthStateChanged(auth, (user) => {
   if (user) {
-    // load lazily when Quotes tab opened; also preload lightly
-    loadQuotes().catch(() => {});
+    loadQuotes().catch((e) => {
+      console.error(e);
+      setQuoteStatus(e.message || "Gagal load quotes", "err");
+    });
   } else {
     draftQuotes = { configVersion: "1.0.0", quotes: [] };
     resetQuoteForm();
     refreshQuotePreview();
+    setQuoteStatus("Login dulu untuk load & publish quotes.", "");
   }
 });
