@@ -19,7 +19,8 @@ service firebase.storage {
     }
 
     match /quotes/{fileName} {
-      allow read: if request.auth != null;
+      // Public read so CMS + Unity can show quote icons from iconUrl.
+      allow read: if true;
       allow create, update: if request.auth != null
                             && request.resource.size < 5 * 1024 * 1024
                             && (
