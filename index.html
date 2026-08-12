@@ -13,8 +13,8 @@
   <div id="login-view" class="view">
     <div class="login-shell">
       <p class="brand">Popi Solitaire</p>
-      <h1>CMS Emoticon</h1>
-      <p class="sub">Login admin untuk upload sprite &amp; publish config ke Unity.</p>
+      <h1>CMS Admin</h1>
+      <p class="sub">Login admin untuk kelola emoticon, quotes, events &amp; publish ke Unity.</p>
       <form id="login-form">
         <label>
           Email
@@ -45,6 +45,7 @@
     <nav class="cms-tabs" aria-label="CMS sections">
       <button type="button" class="cms-tab is-active" data-tab="emoticons">Emoticons</button>
       <button type="button" class="cms-tab" data-tab="quotes">Quotes</button>
+      <button type="button" class="cms-tab" data-tab="events">Events / Quest</button>
     </nav>
 
     <main class="layout" id="tab-emoticons">
@@ -179,9 +180,150 @@
         <div id="quote-list" class="quote-list"></div>
       </section>
     </main>
+
+    <main class="layout" id="tab-events" hidden>
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Events publish</h2>
+          <p>Dokumen Firestore: <code>events_cms/current</code> — Unity float quest di Home + progress ke <code>event_progress</code> / <code>event_completions</code>.</p>
+        </div>
+        <div class="config-row">
+          <label>
+            Config version
+            <input type="text" id="event-config-version" value="1.0.0" placeholder="1.0.0" />
+          </label>
+          <button type="button" id="event-publish-btn" class="btn primary">Publish events</button>
+          <button type="button" id="event-reload-btn" class="btn ghost">Reload</button>
+          <button type="button" id="event-seed-btn" class="btn ghost">Isi contoh</button>
+        </div>
+        <p id="event-status-msg" class="status" role="status"></p>
+        <pre id="event-json-preview" class="json-preview" aria-label="Events JSON preview"></pre>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Tambah / edit event</h2>
+          <p>Waktu event, gambar banner, judul, deskripsi, tipe objective + target.</p>
+        </div>
+        <form id="event-form" class="form-grid">
+          <label>
+            Event ID
+            <input type="text" id="event-id" pattern="[A-Za-z0-9_\-]*" placeholder="auto jika kosong" />
+          </label>
+          <label>
+            Urutan tampil
+            <input type="number" id="event-sort-order" value="0" min="0" step="1" />
+          </label>
+          <label>
+            Waktu mulai
+            <input type="datetime-local" id="event-start-at" required />
+          </label>
+          <label>
+            Waktu selesai
+            <input type="datetime-local" id="event-end-at" required />
+          </label>
+          <label class="full checkbox-label">
+            <input type="checkbox" id="event-enabled" checked />
+            Event aktif (tampil di game saat dalam jadwal)
+          </label>
+          <label>
+            Judul (English)
+            <input type="text" id="event-title-en" required placeholder="10-Hour Marathon" />
+          </label>
+          <label>
+            Judul (Indonesia)
+            <input type="text" id="event-title-id" required placeholder="Marathon 10 Jam" />
+          </label>
+          <label class="full">
+            Deskripsi (English)
+            <textarea id="event-desc-en" rows="2" placeholder="Play during the event..."></textarea>
+          </label>
+          <label class="full">
+            Deskripsi (Indonesia)
+            <textarea id="event-desc-id" rows="2" placeholder="Main selama event..."></textarea>
+          </label>
+          <label class="full">
+            Detail objective (English)
+            <textarea id="event-objective-detail-en" rows="2" placeholder="Play time is counted while the game is open..."></textarea>
+          </label>
+          <label class="full">
+            Detail objective (Indonesia)
+            <textarea id="event-objective-detail-id" rows="2" placeholder="Waktu main dihitung saat game terbuka..."></textarea>
+          </label>
+          <label>
+            Tipe objective
+            <select id="event-objective-kind"></select>
+          </label>
+          <label>
+            Target objective
+            <input type="number" id="event-objective-target" min="0.01" step="any" required placeholder="10" />
+            <span class="field-hint">Satuan: <span id="event-objective-unit">jam</span></span>
+          </label>
+          <label>
+            Tipe reward
+            <select id="event-reward-type"></select>
+          </label>
+          <label id="event-reward-amount-wrap">
+            Jumlah reward
+            <input type="number" id="event-reward-amount" min="0" step="1" value="100" />
+          </label>
+          <div id="event-reward-title-wrap" class="full form-grid" hidden>
+            <label>
+              Title reward (EN)
+              <input type="text" id="event-reward-title-en" placeholder="Combo Master" />
+            </label>
+            <label>
+              Title reward (ID)
+              <input type="text" id="event-reward-title-id" placeholder="Master Combo" />
+            </label>
+          </div>
+          <div id="event-drop-zone" class="drop-zone full" tabindex="0" role="button" aria-label="Drop zone event banner">
+            <input type="file" id="event-image-file" accept="image/png,image/webp,image/jpeg" hidden />
+            <p class="drop-title">Gambar event / banner float</p>
+            <p class="drop-sub">Drag &amp; drop / klik — PNG / WebP / JPG</p>
+          </div>
+          <div class="preview-box full">
+            <img id="event-image-preview" alt="Preview banner" hidden />
+            <span id="event-preview-placeholder">Preview banner</span>
+          </div>
+          <div class="form-actions full">
+            <button type="submit" class="btn primary" id="event-save-btn">Simpan ke draft</button>
+            <button type="button" class="btn ghost" id="event-reset-btn">Reset form</button>
+          </div>
+          <p id="event-form-error" class="error full" hidden></p>
+        </form>
+      </section>
+
+      <section class="panel full-width">
+        <div class="panel-head">
+          <h2>Active events</h2>
+          <p id="event-count">0 event</p>
+        </div>
+        <div id="event-list" class="event-list"></div>
+      </section>
+
+      <section class="panel full-width" id="event-completions-panel">
+        <div class="panel-head">
+          <h2>User yang berhasil objective</h2>
+          <p>Dibaca dari Firestore <code>event_completions/{eventId}/users</code> (ditulis Unity saat selesai).</p>
+        </div>
+        <div class="config-row">
+          <label>
+            Pilih event
+            <select id="completion-event-select"></select>
+          </label>
+          <button type="button" id="completion-reload-btn" class="btn ghost">Reload pemenang</button>
+          <span id="completion-count" class="user-email">0 pemenang</span>
+        </div>
+        <div id="completion-list" class="completion-list">
+          <div class="empty-state">Pilih event untuk melihat user yang berhasil.</div>
+        </div>
+      </section>
+    </main>
   </div>
 
   <script type="module" src="app.js"></script>
   <script type="module" src="quotes.js"></script>
+  <script type="module" src="events.js"></script>
 </body>
 </html>

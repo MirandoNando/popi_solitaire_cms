@@ -14,6 +14,32 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // Home event / quest config (CMS Events tab).
+    // Public read: Unity float quest. Write: CMS admin login.
+    match /events_cms/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Live quest progress — user hanya baca/tulis dokumen sendiri.
+    match /event_progress/{eventId}/users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Quest completions — user create sekali; CMS admin baca semua untuk list pemenang.
+    match /event_completions/{eventId}/users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.auth.uid == userId
+                    && !exists(/databases/$(database)/documents/event_completions/$(eventId)/users/$(userId));
+      allow update: if request.auth != null
+                    && request.auth.uid == userId
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimed', 'claimedAt']);
+      allow delete: if false;
+    }
+
     // Player profiles (AuthManager Register / Profile).
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;

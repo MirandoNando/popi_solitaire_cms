@@ -102,6 +102,58 @@ python3 -m http.server 8080
 
 Buka `http://localhost:8080` (butuh authorized domain `localhost`).
 
+## Events / Quest (tab Events)
+
+Publish config ke Firestore `events_cms/current`. Unity akan baca untuk float quest di Home.
+
+### Field event
+
+| Field | Keterangan |
+|-------|------------|
+| `startAt` / `endAt` | Jadwal event (ISO 8601) |
+| `imageUrl` | Banner float (Storage `events/{id}.png`) |
+| `titleEn` / `titleId` | Judul event |
+| `descriptionEn` / `descriptionId` | Deskripsi singkat |
+| `objectiveDetailEn` / `objectiveDetailId` | Detail cara objective dihitung |
+| `objective.kind` | Tipe quest (lihat daftar di bawah) |
+| `objective.target` | Target angka |
+| `reward` | points / title / lives / none |
+| `enabled` | Aktif/nonaktif |
+| `sortOrder` | Urutan tampil |
+
+### Tipe objective (Unity)
+
+| `kind` | Arti |
+|--------|------|
+| `play_hours` | Main berapa jam (waktu foreground saat event aktif) |
+| `play_minutes` | Main berapa menit |
+| `win_levels` | Menang X level |
+| `play_levels` | Main X level |
+| `total_score` | Total score akumulasi event |
+| `reach_score_single` | Score dalam 1 level |
+| `reach_combo` | Capai combo X |
+| `total_matches` | Total match |
+| `complete_objective` | Selesaikan in-level objective |
+| `happy_mood_level` | Capai mood happy |
+| `match_bomb` | Match bomb tile |
+| `reach_level` | Capai level campaign |
+| `read_daily_quote` | Baca daily quote |
+| `login_days` | Login harian (streak) |
+| `share_game` | Share game |
+
+### Backend Firestore (Unity tulis)
+
+- **Progress live:** `event_progress/{eventId}/users/{uid}`
+- **Pemenang (list admin CMS):** `event_completions/{eventId}/users/{uid}`
+
+CMS tab Events → bagian **User yang berhasil objective** membaca collection completions.
+
+Deploy rules terbaru:
+
+```bash
+firebase deploy --only firestore:rules,storage
+```
+
 ## Unity
 
 Game cukup fetch dokumen `emoticon_cms/current` (Firestore SDK) atau REST JSON, lalu:

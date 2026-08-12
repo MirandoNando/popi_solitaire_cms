@@ -448,14 +448,19 @@ function wireTabs() {
   const tabs = document.querySelectorAll(".cms-tab");
   const tabEmoticons = document.getElementById("tab-emoticons");
   const tabQuotes = document.getElementById("tab-quotes");
+  const tabEvents = document.getElementById("tab-events");
   tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       const name = tab.getAttribute("data-tab");
       tabs.forEach((t) => t.classList.toggle("is-active", t === tab));
       if (tabEmoticons) tabEmoticons.hidden = name !== "emoticons";
       if (tabQuotes) tabQuotes.hidden = name !== "quotes";
+      if (tabEvents) tabEvents.hidden = name !== "events";
       if (name === "quotes" && auth.currentUser) {
         loadQuotes().catch((e) => setQuoteStatus(e.message || "Gagal load", "err"));
+      }
+      if (name === "events" && auth.currentUser && typeof window.loadEvents === "function") {
+        window.loadEvents().catch((e) => console.error(e));
       }
     });
   });
