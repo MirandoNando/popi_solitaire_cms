@@ -185,7 +185,7 @@
       <section class="panel">
         <div class="panel-head">
           <h2>Events publish</h2>
-          <p>Dokumen Firestore: <code>events_cms/current</code> — Unity float quest di Home + progress ke <code>event_progress</code> / <code>event_completions</code>.</p>
+          <p>Dokumen Firestore: <code>events_cms/current</code> — Unity float quest di Home + progress agregat ke <code>event_progress_users/{uid}</code> (~10 detik). Kalau daftar event kosong, game tidak kirim progress.</p>
         </div>
         <div class="config-row">
           <label>
@@ -306,7 +306,7 @@
       <section class="panel full-width" id="event-completions-panel">
         <div class="panel-head">
           <h2>User yang ikut (join) + progress</h2>
-          <p>Dibaca dari Firestore <code>event_progress/{eventId}/users</code> — terisi saat user tekan <strong>Ikuti Event</strong> di game, progress ikut ter-update.</p>
+          <p>Dibaca dari Firestore <code>event_progress_users</code> (<code>joinedEventIds</code> + map <code>events</code>) — terisi saat user tekan <strong>Ikuti Event</strong>, progress digabung 1 dokumen tiap ~10 detik.</p>
         </div>
         <div class="config-row">
           <label>
@@ -324,8 +324,8 @@
     </main>
   </div>
 
-  <script type="module" src="app.js?v=20260813b"></script>
-  <script type="module" src="quotes.js?v=20260813b"></script>
-  <script type="module" src="events.js?v=20260813b"></script>
+  <script type="module" src="app.js?v=20260813c"></script>
+  <script type="module" src="quotes.js?v=20260813c"></script>
+  <script type="module" src="events.js?v=20260813c"></script>
 </body>
 </html>

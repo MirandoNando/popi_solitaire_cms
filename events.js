@@ -5,14 +5,17 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   collection,
   getDocs,
   query,
+  where,
   orderBy,
   limit,
   serverTimestamp,
   writeBatch,
+  arrayRemove,
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 import {
   getStorage,
@@ -791,6 +794,30 @@ function setPendingImage(file) {
   showImagePreview(url);
 }
 
+function rowFromBundleDoc(docSnap, eventId) {
+  const d = docSnap.data() || {};
+  const ev = (d.events && d.events[eventId]) || {};
+  return {
+    uid: d.uid || docSnap.id,
+    nickname: d.nickname || "—",
+    kind: ev.kind || "",
+    unit: ev.unit || "",
+    target: ev.target,
+    progress: ev.progress,
+    progressPercent: ev.progressPercent,
+    progressSeconds: ev.progressSeconds,
+    completed: !!ev.completed,
+    claimed: !!ev.claimed,
+    joinedAt: toIsoMaybe(ev.joinedAt),
+    updatedAt: toIsoMaybe(d.updatedAt),
+    completedAt: toIsoMaybe(ev.completedAt),
+    platform: d.platform || "",
+    isRegistered: d.isRegistered === true,
+    titleId: ev.titleId || "",
+    titleEn: ev.titleEn || "",
+  };
+}
+
 async function loadCompletions(eventId) {
   if (!completionList) return;
   if (!eventId) {
@@ -803,38 +830,61 @@ async function loadCompletions(eventId) {
   selectedCompletionEventId = eventId;
   completionList.innerHTML = `<div class="empty-state">Memuat peserta...</div>`;
   try {
-    const colRef = collection(db, "event_progress", eventId, "users");
-    let snap;
-    try {
-      snap = await getDocs(query(colRef, orderBy("updatedAt", "desc"), limit(500)));
-    } catch (indexErr) {
-      console.warn("[Events] orderBy updatedAt failed, fallback unordered:", indexErr);
-      snap = await getDocs(query(colRef, limit(500)));
-    }
+    // Progress baru: 1 dokumen / user di event_progress_users (map events[eventId]).
+    const snap = await getDocs(
+      query(
+        collection(db, "event_progress_users"),
+        where("joinedEventIds", "array-contains", eventId),
+        limit(500)
+      )
+    );
 
     const rows = [];
+    const seen = new Set();
     snap.forEach((docSnap) => {
-      const d = docSnap.data() || {};
-      rows.push({
-        uid: d.uid || docSnap.id,
-        nickname: d.nickname || "—",
-        kind: d.kind || "",
-        unit: d.unit || "",
-        target: d.target,
-        progress: d.progress,
-        progressPercent: d.progressPercent,
-        progressSeconds: d.progressSeconds,
-        completed: !!d.completed,
-        claimed: !!d.claimed,
-        joinedAt: toIsoMaybe(d.joinedAt),
-        updatedAt: toIsoMaybe(d.updatedAt),
-        completedAt: toIsoMaybe(d.completedAt),
-        platform: d.platform || "",
-        isRegistered: d.isRegistered === true,
-        titleId: d.titleId || "",
-        titleEn: d.titleEn || "",
-      });
+      const row = rowFromBundleDoc(docSnap, eventId);
+      seen.add(row.uid);
+      rows.push(row);
     });
+
+    // Legacy fallback (per-event subcollection) — data lama sebelum agregasi.
+    try {
+      const legacyRef = collection(db, "event_progress", eventId, "users");
+      let legacySnap;
+      try {
+        legacySnap = await getDocs(query(legacyRef, orderBy("updatedAt", "desc"), limit(500)));
+      } catch (_) {
+        legacySnap = await getDocs(query(legacyRef, limit(500)));
+      }
+      legacySnap.forEach((docSnap) => {
+        const d = docSnap.data() || {};
+        const uid = d.uid || docSnap.id;
+        if (seen.has(uid)) return;
+        seen.add(uid);
+        rows.push({
+          uid,
+          nickname: d.nickname || "—",
+          kind: d.kind || "",
+          unit: d.unit || "",
+          target: d.target,
+          progress: d.progress,
+          progressPercent: d.progressPercent,
+          progressSeconds: d.progressSeconds,
+          completed: !!d.completed,
+          claimed: !!d.claimed,
+          joinedAt: toIsoMaybe(d.joinedAt),
+          updatedAt: toIsoMaybe(d.updatedAt),
+          completedAt: toIsoMaybe(d.completedAt),
+          platform: d.platform || "",
+          isRegistered: d.isRegistered === true,
+          titleId: d.titleId || "",
+          titleEn: d.titleEn || "",
+          _legacy: true,
+        });
+      });
+    } catch (legacyErr) {
+      console.warn("[Events] legacy progress read skipped:", legacyErr);
+    }
 
     rows.sort((a, b) => {
       const ta = a.updatedAt || a.joinedAt || "";
@@ -848,7 +898,7 @@ async function loadCompletions(eventId) {
 
     if (!rows.length) {
       completionList.innerHTML =
-        `<div class="empty-state">Belum ada user yang ikut event ini. Data muncul setelah user tekan <strong>Ikuti Event</strong> di game (Firestore <code>event_progress/${escapeHtml(eventId)}/users</code>).</div>`;
+        `<div class="empty-state">Belum ada user yang ikut event ini. Data muncul setelah user tekan <strong>Ikuti Event</strong> di game (Firestore <code>event_progress_users/{uid}</code>, flush ~10 detik).</div>`;
       return;
     }
 
@@ -905,11 +955,46 @@ async function loadCompletions(eventId) {
   }
 }
 
+async function removeEventFromUserBundle(eventId, uid) {
+  const ref = doc(db, "event_progress_users", uid);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return false;
+
+  const d = snap.data() || {};
+  const events = { ...(d.events || {}) };
+  delete events[eventId];
+  const joined = Array.isArray(d.joinedEventIds)
+    ? d.joinedEventIds.filter((x) => x !== eventId)
+    : [];
+
+  if (Object.keys(events).length === 0 && joined.length === 0) {
+    await deleteDoc(ref);
+  } else {
+    await updateDoc(ref, {
+      events,
+      joinedEventIds: joined,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  try {
+    await updateDoc(doc(db, "users", uid), { joinedEvents: arrayRemove(eventId) });
+  } catch (_) {
+    /* mirror opsional */
+  }
+  return true;
+}
+
 async function deleteParticipant(eventId, uid) {
   if (!eventId || !uid) return;
   if (!window.confirm(`Hapus peserta ${uid} dari event ${eventId}?`)) return;
   try {
-    await deleteDoc(doc(db, "event_progress", eventId, "users", uid));
+    await removeEventFromUserBundle(eventId, uid);
+    try {
+      await deleteDoc(doc(db, "event_progress", eventId, "users", uid));
+    } catch (_) {
+      /* legacy */
+    }
     try {
       await deleteDoc(doc(db, "event_completions", eventId, "users", uid));
     } catch (_) {
@@ -927,27 +1012,53 @@ async function purgeGuestParticipants(eventId) {
   if (!eventId) return;
   if (!window.confirm(`Hapus SEMUA Guest dari event ${eventId}? Registered tidak ikut terhapus.`)) return;
   try {
-    const colRef = collection(db, "event_progress", eventId, "users");
-    const snap = await getDocs(query(colRef, limit(500)));
-    const guests = [];
-    snap.forEach((docSnap) => {
+    const guests = new Set();
+
+    const bundleSnap = await getDocs(
+      query(
+        collection(db, "event_progress_users"),
+        where("joinedEventIds", "array-contains", eventId),
+        limit(500)
+      )
+    );
+    bundleSnap.forEach((docSnap) => {
       const d = docSnap.data() || {};
       if (d.isRegistered === true) return;
-      guests.push(docSnap.id);
+      guests.add(docSnap.id);
     });
-    if (!guests.length) {
+
+    try {
+      const legacySnap = await getDocs(
+        query(collection(db, "event_progress", eventId, "users"), limit(500))
+      );
+      legacySnap.forEach((docSnap) => {
+        const d = docSnap.data() || {};
+        if (d.isRegistered === true) return;
+        guests.add(docSnap.id);
+      });
+    } catch (_) {
+      /* ignore */
+    }
+
+    if (!guests.size) {
       setEventStatus("Tidak ada Guest di event ini.", "ok");
       return;
     }
 
-    // Batch max 500; kita sudah limit 500.
-    const batch = writeBatch(db);
     for (const uid of guests) {
-      batch.delete(doc(db, "event_progress", eventId, "users", uid));
-      batch.delete(doc(db, "event_completions", eventId, "users", uid));
+      await removeEventFromUserBundle(eventId, uid);
+      try {
+        await deleteDoc(doc(db, "event_progress", eventId, "users", uid));
+      } catch (_) {
+        /* legacy */
+      }
+      try {
+        await deleteDoc(doc(db, "event_completions", eventId, "users", uid));
+      } catch (_) {
+        /* optional */
+      }
     }
-    await batch.commit();
-    setEventStatus(`${guests.length} Guest dihapus dari ${eventId}.`, "ok");
+    setEventStatus(`${guests.size} Guest dihapus dari ${eventId}.`, "ok");
     await loadCompletions(eventId);
   } catch (error) {
     console.error(error);

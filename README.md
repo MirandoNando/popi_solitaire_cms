@@ -143,7 +143,8 @@ Publish config ke Firestore `events_cms/current`. Unity akan baca untuk float qu
 
 ### Backend Firestore (Unity tulis)
 
-- **Progress live:** `event_progress/{eventId}/users/{uid}`
+- **Progress live (agregat):** `event_progress_users/{uid}` — map `events` + `joinedEventIds`, flush ~10 detik dari game
+- **Legacy:** `event_progress/{eventId}/users/{uid}` (CMS masih baca sebagai fallback)
 - **Pemenang (list admin CMS):** `event_completions/{eventId}/users/{uid}`
 
 CMS tab Events → bagian **User yang berhasil objective** membaca collection completions.

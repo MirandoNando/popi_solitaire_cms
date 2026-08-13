@@ -21,11 +21,23 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
-    // Live quest progress + join roster — user tulis sendiri; CMS admin baca/hapus.
+    // Progress agregat 1 dokumen / user (Unity flush ~10s).
+    // CMS admin (non-anonymous) boleh baca + update/hapus peserta.
+    match /event_progress_users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == userId
+        || request.auth.token.firebase.sign_in_provider != 'anonymous'
+      );
+      allow delete: if request.auth != null
+                    && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Legacy per-event progress (baca/hapus CMS; game baru tidak menulis).
     match /event_progress/{eventId}/users/{userId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null && request.auth.uid == userId;
-      // Hapus peserta: CMS login email (bukan anonymous/guest game session).
       allow delete: if request.auth != null
                     && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
@@ -44,8 +56,21 @@ service cloud.firestore {
     }
 
     // Player profiles (AuthManager Register / Profile).
+    // CMS boleh update field joinedEvents saja (hapus peserta).
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (
+        request.auth.uid == userId
+        || request.auth.token.firebase.sign_in_provider != 'anonymous'
+      );
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == userId
+        || (
+          request.auth.token.firebase.sign_in_provider != 'anonymous'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joinedEvents'])
+        )
+      );
+      allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
     match /{document=**} {
