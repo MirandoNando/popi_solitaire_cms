@@ -719,6 +719,26 @@ textarea {
   word-break: break-all;
 }
 
+.progress-cell {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 88px;
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(28, 36, 32, 0.1);
+  overflow: hidden;
+}
+
+.progress-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;

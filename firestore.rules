@@ -21,9 +21,9 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
-    // Live quest progress — user hanya baca/tulis dokumen sendiri.
+    // Live quest progress + join roster — user tulis sendiri; CMS admin baca semua.
     match /event_progress/{eventId}/users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
       allow create, update: if request.auth != null && request.auth.uid == userId;
       allow delete: if false;
     }

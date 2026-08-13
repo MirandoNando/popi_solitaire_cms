@@ -186,9 +186,45 @@ function formatProgress(kind, value) {
   const meta = objectiveKindMeta(kind);
   const n = Number(value);
   if (Number.isNaN(n)) return String(value ?? "—");
-  if (kind === "play_hours") return `${n.toFixed(1)} jam`;
+  if (kind === "play_hours") return `${n.toFixed(2)} jam`;
   if (kind === "play_minutes") return `${Math.round(n)} menit`;
-  return `${n} ${meta.unit}`.trim();
+  if (Number.isInteger(n)) return `${n} ${meta.unit}`.trim();
+  return `${n.toFixed(2)} ${meta.unit}`.trim();
+}
+
+function formatProgressDetail(row) {
+  const kind = row.kind || "";
+  const progress = Number(row.progress);
+  const target = Number(row.target);
+  const unit = row.unit || objectiveKindMeta(kind).unit || "";
+  const progText = Number.isNaN(progress) ? "—" : formatProgress(kind, progress);
+  const targetText = Number.isNaN(target) ? "—" : formatProgress(kind, target);
+  let pct = Number(row.progressPercent);
+  if (Number.isNaN(pct) && !Number.isNaN(progress) && !Number.isNaN(target) && target > 0) {
+    pct = Math.min(100, (progress / target) * 100);
+  }
+  const pctText = Number.isNaN(pct) ? "—" : `${pct.toFixed(0)}%`;
+  const kindLabel = objectiveKindMeta(kind).label || kind || "—";
+  return {
+    kindLabel,
+    bar: `${progText} / ${targetText}`,
+    pctText,
+    unit,
+  };
+}
+
+function participantStatus(row) {
+  if (row.claimed) return { text: "Claimed", cls: "event-badge-on" };
+  if (row.completed) return { text: "Selesai", cls: "event-badge-on" };
+  return { text: "Berlangsung", cls: "event-badge-on" };
+}
+
+function toIsoMaybe(value) {
+  if (!value) return "";
+  if (typeof value?.toDate === "function") return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string") return value;
+  return "";
 }
 
 function slugId(text) {
@@ -332,7 +368,7 @@ function refreshEventPreview() {
           <p class="event-schedule">${escapeHtml(formatDateTime(e.startAt))} → ${escapeHtml(formatDateTime(e.endAt))}</p>
         </div>
         <div class="event-actions">
-          <button type="button" class="btn ghost" data-act="completions">Pemenang</button>
+          <button type="button" class="btn ghost" data-act="completions">Peserta</button>
           <button type="button" class="btn ghost" data-act="edit">Edit</button>
           <button type="button" class="btn danger" data-act="delete">Hapus</button>
         </div>
@@ -697,17 +733,24 @@ function setPendingImage(file) {
 async function loadCompletions(eventId) {
   if (!completionList) return;
   if (!eventId) {
-    completionCount.textContent = "0 pemenang";
+    completionCount.textContent = "0 peserta";
     completionList.innerHTML =
-      `<div class="empty-state">Pilih event untuk melihat user yang berhasil.</div>`;
+      `<div class="empty-state">Pilih event untuk melihat user yang ikut + progress.</div>`;
     return;
   }
 
   selectedCompletionEventId = eventId;
-  completionList.innerHTML = `<div class="empty-state">Memuat pemenang...</div>`;
+  completionList.innerHTML = `<div class="empty-state">Memuat peserta...</div>`;
   try {
-    const colRef = collection(db, "event_completions", eventId, "users");
-    const snap = await getDocs(query(colRef, orderBy("completedAt", "desc"), limit(500)));
+    const colRef = collection(db, "event_progress", eventId, "users");
+    let snap;
+    try {
+      snap = await getDocs(query(colRef, orderBy("updatedAt", "desc"), limit(500)));
+    } catch (indexErr) {
+      console.warn("[Events] orderBy updatedAt failed, fallback unordered:", indexErr);
+      snap = await getDocs(query(colRef, limit(500)));
+    }
+
     const rows = [];
     snap.forEach((docSnap) => {
       const d = docSnap.data() || {};
@@ -715,19 +758,36 @@ async function loadCompletions(eventId) {
         uid: d.uid || docSnap.id,
         nickname: d.nickname || "—",
         kind: d.kind || "",
+        unit: d.unit || "",
         target: d.target,
-        finalProgress: d.finalProgress,
-        finalProgressSeconds: d.finalProgressSeconds,
-        completedAt: d.completedAt?.toDate?.() ? d.completedAt.toDate().toISOString() : d.completedAt || "",
-        claimedAt: d.claimedAt?.toDate?.() ? d.claimedAt.toDate().toISOString() : d.claimedAt || "",
+        progress: d.progress,
+        progressPercent: d.progressPercent,
+        progressSeconds: d.progressSeconds,
+        completed: !!d.completed,
+        claimed: !!d.claimed,
+        joinedAt: toIsoMaybe(d.joinedAt),
+        updatedAt: toIsoMaybe(d.updatedAt),
+        completedAt: toIsoMaybe(d.completedAt),
         platform: d.platform || "",
+        isRegistered: d.isRegistered === true,
+        titleId: d.titleId || "",
+        titleEn: d.titleEn || "",
       });
     });
 
-    completionCount.textContent = `${rows.length} pemenang`;
+    rows.sort((a, b) => {
+      const ta = a.updatedAt || a.joinedAt || "";
+      const tb = b.updatedAt || b.joinedAt || "";
+      return tb.localeCompare(ta);
+    });
+
+    const joinedCount = rows.length;
+    const doneCount = rows.filter((r) => r.completed).length;
+    completionCount.textContent = `${joinedCount} peserta · ${doneCount} selesai`;
+
     if (!rows.length) {
       completionList.innerHTML =
-        `<div class="empty-state">Belum ada user yang menyelesaikan event ini. Data muncul setelah Unity sync ke <code>event_completions/${escapeHtml(eventId)}/users</code>.</div>`;
+        `<div class="empty-state">Belum ada user yang ikut event ini. Data muncul setelah user tekan <strong>Ikuti Event</strong> di game (Firestore <code>event_progress/${escapeHtml(eventId)}/users</code>).</div>`;
       return;
     }
 
@@ -737,24 +797,39 @@ async function loadCompletions(eventId) {
           <tr>
             <th>Nickname</th>
             <th>UID</th>
+            <th>Objective</th>
             <th>Progress</th>
-            <th>Selesai</th>
-            <th>Claim</th>
+            <th>%</th>
+            <th>Status</th>
+            <th>Join</th>
+            <th>Update</th>
+            <th>Akun</th>
             <th>Platform</th>
           </tr>
         </thead>
         <tbody>
           ${rows
-            .map(
-              (r) => `<tr>
+            .map((r) => {
+              const detail = formatProgressDetail(r);
+              const st = participantStatus(r);
+              return `<tr>
             <td>${escapeHtml(r.nickname)}</td>
             <td><code class="uid-cell">${escapeHtml(r.uid)}</code></td>
-            <td>${escapeHtml(formatProgress(r.kind, r.finalProgress ?? (r.finalProgressSeconds ? r.finalProgressSeconds / 3600 : "")))}</td>
-            <td>${escapeHtml(formatDateTime(r.completedAt))}</td>
-            <td>${r.claimedAt ? "✅" : "—"}</td>
+            <td>${escapeHtml(detail.kindLabel)}<div class="field-hint">${escapeHtml(detail.bar)}</div></td>
+            <td>${escapeHtml(detail.bar)}</td>
+            <td>
+              <div class="progress-cell">
+                <div class="progress-bar" aria-hidden="true"><span style="width:${escapeHtml(detail.pctText === "—" ? "0%" : detail.pctText)}"></span></div>
+                <span>${escapeHtml(detail.pctText)}</span>
+              </div>
+            </td>
+            <td><span class="event-badge ${st.cls}">${escapeHtml(st.text)}</span></td>
+            <td>${escapeHtml(formatDateTime(r.joinedAt))}</td>
+            <td>${escapeHtml(formatDateTime(r.updatedAt))}</td>
+            <td>${r.isRegistered ? "Registered" : "Guest"}</td>
             <td>${escapeHtml(r.platform || "—")}</td>
-          </tr>`
-            )
+          </tr>`;
+            })
             .join("")}
         </tbody>
       </table>
@@ -763,7 +838,7 @@ async function loadCompletions(eventId) {
     console.error(error);
     completionCount.textContent = "—";
     completionList.innerHTML =
-      `<div class="empty-state error">Gagal load pemenang: ${escapeHtml(error.message || "unknown")}</div>`;
+      `<div class="empty-state error">Gagal load peserta: ${escapeHtml(error.message || "unknown")}</div>`;
   }
 }
 
@@ -777,7 +852,7 @@ function showCompletionsForEvent(id) {
     const section = document.getElementById("event-completions-panel");
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
-  loadCompletions(id).catch((e) => setEventStatus(e.message || "Gagal load pemenang", "err"));
+  loadCompletions(id).catch((e) => setEventStatus(e.message || "Gagal load peserta", "err"));
 }
 
 function wireEventUi() {
@@ -835,11 +910,11 @@ function wireEventUi() {
 
   completionReloadBtn?.addEventListener("click", () => {
     const id = completionEventSelect?.value || selectedCompletionEventId;
-    loadCompletions(id).catch((e) => setEventStatus(e.message || "Gagal load pemenang", "err"));
+    loadCompletions(id).catch((e) => setEventStatus(e.message || "Gagal load peserta", "err"));
   });
   completionEventSelect?.addEventListener("change", () => {
     loadCompletions(completionEventSelect.value).catch((e) =>
-      setEventStatus(e.message || "Gagal load pemenang", "err")
+      setEventStatus(e.message || "Gagal load peserta", "err")
     );
   });
 }

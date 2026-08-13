@@ -304,19 +304,19 @@
 
       <section class="panel full-width" id="event-completions-panel">
         <div class="panel-head">
-          <h2>User yang berhasil objective</h2>
-          <p>Dibaca dari Firestore <code>event_completions/{eventId}/users</code> (ditulis Unity saat selesai).</p>
+          <h2>User yang ikut (join) + progress</h2>
+          <p>Dibaca dari Firestore <code>event_progress/{eventId}/users</code> — terisi saat user tekan <strong>Ikuti Event</strong> di game, progress ikut ter-update.</p>
         </div>
         <div class="config-row">
           <label>
             Pilih event
             <select id="completion-event-select"></select>
           </label>
-          <button type="button" id="completion-reload-btn" class="btn ghost">Reload pemenang</button>
-          <span id="completion-count" class="user-email">0 pemenang</span>
+          <button type="button" id="completion-reload-btn" class="btn ghost">Reload peserta</button>
+          <span id="completion-count" class="user-email">0 peserta</span>
         </div>
         <div id="completion-list" class="completion-list">
-          <div class="empty-state">Pilih event untuk melihat user yang berhasil.</div>
+          <div class="empty-state">Pilih event untuk melihat user yang ikut + progress.</div>
         </div>
       </section>
     </main>
