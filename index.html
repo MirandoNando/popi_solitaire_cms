@@ -306,7 +306,7 @@
       <section class="panel full-width" id="event-completions-panel">
         <div class="panel-head">
           <h2>User yang ikut (join) + progress</h2>
-          <p>Dibaca dari Firestore <code>event_progress_users</code> (<code>joinedEventIds</code> + map <code>events</code>) — terisi saat user tekan <strong>Ikuti Event</strong>, progress digabung 1 dokumen tiap ~10 detik.</p>
+          <p>Dibaca dari Firestore <code>event_progress_users</code> (<code>joinedEventIds</code> + map <code>events</code>) — progress dihitung <strong>sejak join</strong> (score/level akun tidak direset), digabung 1 dokumen tiap ~10 detik.</p>
         </div>
         <div class="config-row">
           <label>
