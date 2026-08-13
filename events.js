@@ -191,7 +191,7 @@ function formatProgress(kind, value) {
   const n = Number(value);
   if (Number.isNaN(n)) return String(value ?? "—");
   if (kind === "play_hours") return `${n.toFixed(2)} jam`;
-  if (kind === "play_minutes") return `${Math.round(n)} menit`;
+  if (kind === "play_minutes") return `${n.toFixed(1)} menit`;
   if (Number.isInteger(n)) return `${n} ${meta.unit}`.trim();
   return `${n.toFixed(2)} ${meta.unit}`.trim();
 }
