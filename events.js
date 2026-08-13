@@ -345,7 +345,7 @@ function refreshEventPreview() {
   if (!eventList) return;
   if (!draftEvents.events.length) {
     eventList.innerHTML =
-      `<div class="empty-state">Belum ada event. Klik <strong>Isi contoh</strong> atau tambah manual, lalu Publish.</div>`;
+      `<div class="empty-state">Belum ada event. Tambah manual atau klik <strong>Isi contoh</strong>, lalu Simpan &amp; publish.</div>`;
     return;
   }
 
@@ -499,10 +499,10 @@ export async function loadEvents(options = {}) {
   setEventStatus("Memuat events dari Firestore...");
   const snap = await getDoc(eventDocRef());
   if (!snap.exists()) {
-    draftEvents = { configVersion: "1.0.0", events: sampleEvents() };
-    eventsDirty = true;
+    draftEvents = { configVersion: "1.0.0", events: [] };
+    eventsDirty = false;
     refreshEventPreview();
-    setEventStatus("Belum ada dokumen — contoh event diisi di draft. Klik Publish events.", "ok");
+    setEventStatus("Belum ada dokumen events. Tambah event lalu Simpan & publish, atau Isi contoh.", "ok");
     return;
   }
 
@@ -512,14 +512,11 @@ export async function loadEvents(options = {}) {
     events: Array.isArray(data.events) ? data.events.map(normalizeEvent) : [],
   };
   eventsDirty = false;
+  refreshEventPreview();
   if (!draftEvents.events.length) {
-    draftEvents.events = sampleEvents();
-    eventsDirty = true;
-    refreshEventPreview();
-    setEventStatus("Dokumen kosong — contoh event diisi di draft. Klik Publish events.", "ok");
+    setEventStatus("Loaded events — daftar kosong (tidak diisi ulang contoh).", "ok");
     return;
   }
-  refreshEventPreview();
   const withImage = draftEvents.events.filter((e) => e.imageUrl).length;
   setEventStatus(
     `Loaded events v${draftEvents.configVersion} (${draftEvents.events.length}, ${withImage} ber-gambar)`,
@@ -656,7 +653,7 @@ async function saveEvent(event) {
 }
 
 async function deleteEvent(id) {
-  if (!window.confirm(`Hapus event ${id}?`)) return;
+  if (!window.confirm(`Hapus event ${id} dari CMS & Firebase?`)) return;
   const item = draftEvents.events.find((e) => e.id === id);
   draftEvents.events = draftEvents.events.filter((e) => e.id !== id);
 
@@ -672,7 +669,12 @@ async function deleteEvent(id) {
   if (editingEventId === id) resetEventForm();
   eventsDirty = true;
   refreshEventPreview();
-  setEventStatus(`${id} dihapus dari draft. Publish untuk apply.`, "ok");
+  setEventStatus(`${id} dihapus — publishing ke Firebase...`, "ok");
+  try {
+    await publishEvents();
+  } catch (error) {
+    setEventStatus(error.message || `Gagal publish setelah hapus ${id}`, "err");
+  }
 }
 
 function editEvent(id) {
