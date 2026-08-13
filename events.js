@@ -5,12 +5,14 @@ import {
   doc,
   getDoc,
   setDoc,
+  deleteDoc,
   collection,
   getDocs,
   query,
   orderBy,
   limit,
   serverTimestamp,
+  writeBatch,
 } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 import {
   getStorage,
@@ -101,6 +103,7 @@ const eventList = document.getElementById("event-list");
 const eventCount = document.getElementById("event-count");
 const completionEventSelect = document.getElementById("completion-event-select");
 const completionReloadBtn = document.getElementById("completion-reload-btn");
+const completionPurgeGuestsBtn = document.getElementById("completion-purge-guests-btn");
 const completionCount = document.getElementById("completion-count");
 const completionList = document.getElementById("completion-list");
 
@@ -805,6 +808,7 @@ async function loadCompletions(eventId) {
             <th>Update</th>
             <th>Akun</th>
             <th>Platform</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -812,7 +816,7 @@ async function loadCompletions(eventId) {
             .map((r) => {
               const detail = formatProgressDetail(r);
               const st = participantStatus(r);
-              return `<tr>
+              return `<tr data-uid="${escapeHtml(r.uid)}">
             <td>${escapeHtml(r.nickname)}</td>
             <td><code class="uid-cell">${escapeHtml(r.uid)}</code></td>
             <td>${escapeHtml(detail.kindLabel)}<div class="field-hint">${escapeHtml(detail.bar)}</div></td>
@@ -828,6 +832,7 @@ async function loadCompletions(eventId) {
             <td>${escapeHtml(formatDateTime(r.updatedAt))}</td>
             <td>${r.isRegistered ? "Registered" : "Guest"}</td>
             <td>${escapeHtml(r.platform || "—")}</td>
+            <td><button type="button" class="btn danger" data-act="delete-participant" data-uid="${escapeHtml(r.uid)}">Hapus</button></td>
           </tr>`;
             })
             .join("")}
@@ -839,6 +844,56 @@ async function loadCompletions(eventId) {
     completionCount.textContent = "—";
     completionList.innerHTML =
       `<div class="empty-state error">Gagal load peserta: ${escapeHtml(error.message || "unknown")}</div>`;
+  }
+}
+
+async function deleteParticipant(eventId, uid) {
+  if (!eventId || !uid) return;
+  if (!window.confirm(`Hapus peserta ${uid} dari event ${eventId}?`)) return;
+  try {
+    await deleteDoc(doc(db, "event_progress", eventId, "users", uid));
+    try {
+      await deleteDoc(doc(db, "event_completions", eventId, "users", uid));
+    } catch (_) {
+      /* optional mirror */
+    }
+    setEventStatus(`Peserta ${uid} dihapus.`, "ok");
+    await loadCompletions(eventId);
+  } catch (error) {
+    console.error(error);
+    setEventStatus(error.message || "Gagal hapus peserta", "err");
+  }
+}
+
+async function purgeGuestParticipants(eventId) {
+  if (!eventId) return;
+  if (!window.confirm(`Hapus SEMUA Guest dari event ${eventId}? Registered tidak ikut terhapus.`)) return;
+  try {
+    const colRef = collection(db, "event_progress", eventId, "users");
+    const snap = await getDocs(query(colRef, limit(500)));
+    const guests = [];
+    snap.forEach((docSnap) => {
+      const d = docSnap.data() || {};
+      if (d.isRegistered === true) return;
+      guests.push(docSnap.id);
+    });
+    if (!guests.length) {
+      setEventStatus("Tidak ada Guest di event ini.", "ok");
+      return;
+    }
+
+    // Batch max 500; kita sudah limit 500.
+    const batch = writeBatch(db);
+    for (const uid of guests) {
+      batch.delete(doc(db, "event_progress", eventId, "users", uid));
+      batch.delete(doc(db, "event_completions", eventId, "users", uid));
+    }
+    await batch.commit();
+    setEventStatus(`${guests.length} Guest dihapus dari ${eventId}.`, "ok");
+    await loadCompletions(eventId);
+  } catch (error) {
+    console.error(error);
+    setEventStatus(error.message || "Gagal hapus Guest", "err");
   }
 }
 
@@ -911,6 +966,17 @@ function wireEventUi() {
   completionReloadBtn?.addEventListener("click", () => {
     const id = completionEventSelect?.value || selectedCompletionEventId;
     loadCompletions(id).catch((e) => setEventStatus(e.message || "Gagal load peserta", "err"));
+  });
+  completionPurgeGuestsBtn?.addEventListener("click", () => {
+    const id = completionEventSelect?.value || selectedCompletionEventId;
+    purgeGuestParticipants(id).catch((e) => setEventStatus(e.message || "Gagal hapus Guest", "err"));
+  });
+  completionList?.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("button[data-act='delete-participant']");
+    if (!btn) return;
+    const uid = btn.getAttribute("data-uid");
+    const id = completionEventSelect?.value || selectedCompletionEventId;
+    deleteParticipant(id, uid).catch((e) => setEventStatus(e.message || "Gagal hapus peserta", "err"));
   });
   completionEventSelect?.addEventListener("change", () => {
     loadCompletions(completionEventSelect.value).catch((e) =>
