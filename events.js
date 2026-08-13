@@ -71,6 +71,7 @@ const eventConfigVersionInput = document.getElementById("event-config-version");
 const eventPublishBtn = document.getElementById("event-publish-btn");
 const eventReloadBtn = document.getElementById("event-reload-btn");
 const eventSeedBtn = document.getElementById("event-seed-btn");
+const eventClearAllBtn = document.getElementById("event-clear-all-btn");
 const eventStatusMsg = document.getElementById("event-status-msg");
 const eventJsonPreview = document.getElementById("event-json-preview");
 const eventForm = document.getElementById("event-form");
@@ -525,21 +526,33 @@ export async function loadEvents(options = {}) {
 }
 
 async function publishEvents() {
+  if (!auth.currentUser) {
+    setEventStatus("Login dulu untuk publish events.", "err");
+    throw new Error("Not authenticated");
+  }
+
   draftEvents.configVersion = (eventConfigVersionInput?.value || "1.0.0").trim();
   const payload = {
-    ...buildEventPayload(),
+    configVersion: draftEvents.configVersion || "1.0.0",
+    // Explicit array — termasuk [] supaya hapus semua benar-benar ke Firebase.
+    events: Array.isArray(draftEvents.events)
+      ? [...draftEvents.events]
+          .map(normalizeEvent)
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
+      : [],
     updatedAt: serverTimestamp(),
-    updatedBy: auth.currentUser?.email || null,
+    updatedBy: auth.currentUser?.email || auth.currentUser?.uid || null,
   };
   eventPublishBtn.disabled = true;
-  setEventStatus("Publishing events...");
+  eventClearAllBtn && (eventClearAllBtn.disabled = true);
+  setEventStatus(`Publishing ${payload.events.length} event ke Firebase...`);
   try {
     await setDoc(eventDocRef(), payload, { merge: false });
     eventsDirty = false;
     refreshEventPreview();
-    const withImage = draftEvents.events.filter((e) => e.imageUrl).length;
+    const withImage = payload.events.filter((e) => e.imageUrl).length;
     setEventStatus(
-      `Published ke events_cms/current (${draftEvents.events.length} event, ${withImage} ber-gambar)`,
+      `Published ke events_cms/current (${payload.events.length} event, ${withImage} ber-gambar)`,
       "ok"
     );
   } catch (error) {
@@ -548,6 +561,7 @@ async function publishEvents() {
     throw error;
   } finally {
     eventPublishBtn.disabled = false;
+    if (eventClearAllBtn) eventClearAllBtn.disabled = false;
   }
 }
 
@@ -653,6 +667,10 @@ async function saveEvent(event) {
 }
 
 async function deleteEvent(id) {
+  if (!auth.currentUser) {
+    setEventStatus("Login dulu untuk hapus event.", "err");
+    return;
+  }
   if (!window.confirm(`Hapus event ${id} dari CMS & Firebase?`)) return;
   const item = draftEvents.events.find((e) => e.id === id);
   draftEvents.events = draftEvents.events.filter((e) => e.id !== id);
@@ -673,7 +691,44 @@ async function deleteEvent(id) {
   try {
     await publishEvents();
   } catch (error) {
+    console.error(error);
     setEventStatus(error.message || `Gagal publish setelah hapus ${id}`, "err");
+  }
+}
+
+async function clearAllEvents() {
+  if (!auth.currentUser) {
+    setEventStatus("Login dulu untuk hapus semua event.", "err");
+    return;
+  }
+  if (!draftEvents.events.length) {
+    setEventStatus("Daftar event sudah kosong.", "ok");
+    return;
+  }
+  if (!window.confirm(`Hapus SEMUA ${draftEvents.events.length} event dari CMS & Firebase?`)) return;
+
+  const toClear = [...draftEvents.events];
+  draftEvents.events = [];
+  if (editingEventId) resetEventForm();
+  eventsDirty = true;
+  refreshEventPreview();
+  setEventStatus("Menghapus semua event — publishing ke Firebase...", "ok");
+
+  try {
+    await publishEvents();
+    // Best-effort hapus gambar storage (jangan gagalkan publish).
+    for (const item of toClear) {
+      if (!item?.imageUrl) continue;
+      try {
+        const pathMatch = decodeURIComponent(item.imageUrl).match(/\/o\/([^?]+)/);
+        if (pathMatch?.[1]) await deleteObject(ref(storage, decodeURIComponent(pathMatch[1])));
+      } catch (error) {
+        console.warn("Event image delete skipped:", error);
+      }
+    }
+  } catch (error) {
+    console.error(error);
+    setEventStatus(error.message || "Gagal hapus semua event", "err");
   }
 }
 
@@ -707,6 +762,7 @@ function editEvent(id) {
 }
 
 function seedSampleEvents() {
+  if (!window.confirm("Tambah 3 event contoh ke draft? (belum ke Firebase sampai Publish)")) return;
   const samples = sampleEvents();
   let added = 0;
   for (const sample of samples) {
@@ -718,7 +774,7 @@ function seedSampleEvents() {
   refreshEventPreview();
   setEventStatus(
     added > 0
-      ? `${added} contoh event ditambahkan ke draft. Klik Publish events.`
+      ? `${added} contoh event ditambahkan ke draft. Klik Publish events agar tersimpan di Firebase.`
       : "Contoh sudah ada di draft.",
     "ok"
   );
@@ -929,6 +985,9 @@ function wireEventUi() {
     loadEvents({ force: true }).catch((e) => setEventStatus(e.message || "Gagal reload", "err"));
   });
   eventSeedBtn?.addEventListener("click", () => seedSampleEvents());
+  eventClearAllBtn?.addEventListener("click", () => {
+    clearAllEvents().catch((e) => setEventStatus(e.message || "Gagal hapus semua", "err"));
+  });
   eventConfigVersionInput?.addEventListener("change", () => {
     draftEvents.configVersion = eventConfigVersionInput.value.trim() || "1.0.0";
     eventsDirty = true;
@@ -961,7 +1020,9 @@ function wireEventUi() {
     const id = card?.getAttribute("data-id");
     if (!id) return;
     if (btn.getAttribute("data-act") === "edit") editEvent(id);
-    if (btn.getAttribute("data-act") === "delete") deleteEvent(id);
+    if (btn.getAttribute("data-act") === "delete") {
+      deleteEvent(id).catch((e) => setEventStatus(e.message || "Gagal hapus event", "err"));
+    }
     if (btn.getAttribute("data-act") === "completions") showCompletionsForEvent(id);
   });
 
