@@ -109,6 +109,10 @@ let draftEvents = { configVersion: "1.0.0", events: [] };
 let editingEventId = null;
 /** @type {File|null} */
 let pendingImage = null;
+/** URL gambar yang sudah tersimpan (edit / setelah upload). */
+let currentImageUrl = "";
+/** Draft lokal berubah & belum di-load ulang dari server. */
+let eventsDirty = false;
 let selectedCompletionEventId = "";
 
 function eventDocRef() {
@@ -340,6 +344,7 @@ function refreshEventPreview() {
 function resetEventForm() {
   editingEventId = null;
   pendingImage = null;
+  currentImageUrl = "";
   if (eventForm) eventForm.reset();
   if (eventIdInput) eventIdInput.value = "";
   if (eventObjectiveKind) eventObjectiveKind.value = "play_hours";
@@ -354,7 +359,23 @@ function resetEventForm() {
     eventImagePreview.removeAttribute("src");
   }
   if (eventPreviewPlaceholder) eventPreviewPlaceholder.hidden = false;
-  if (eventSaveBtn) eventSaveBtn.textContent = "Simpan ke draft";
+  if (eventSaveBtn) eventSaveBtn.textContent = "Simpan & publish";
+}
+
+function showImagePreview(url) {
+  if (!url) {
+    if (eventImagePreview) {
+      eventImagePreview.hidden = true;
+      eventImagePreview.removeAttribute("src");
+    }
+    if (eventPreviewPlaceholder) eventPreviewPlaceholder.hidden = false;
+    return;
+  }
+  if (eventImagePreview) {
+    eventImagePreview.src = url;
+    eventImagePreview.hidden = false;
+  }
+  if (eventPreviewPlaceholder) eventPreviewPlaceholder.hidden = true;
 }
 
 async function uploadEventImage(eventId, file) {
@@ -424,11 +445,23 @@ function sampleEvents() {
   ];
 }
 
-export async function loadEvents() {
+export async function loadEvents(options = {}) {
+  const { force = false } = options;
+  if (eventsDirty && !force) {
+    const ok = window.confirm(
+      "Ada perubahan event yang belum di-reload dari server (termasuk gambar). Reload akan menimpa draft lokal. Lanjut?"
+    );
+    if (!ok) {
+      setEventStatus("Reload dibatalkan — draft lokal tetap dipakai.", "ok");
+      return;
+    }
+  }
+
   setEventStatus("Memuat events dari Firestore...");
   const snap = await getDoc(eventDocRef());
   if (!snap.exists()) {
     draftEvents = { configVersion: "1.0.0", events: sampleEvents() };
+    eventsDirty = true;
     refreshEventPreview();
     setEventStatus("Belum ada dokumen — contoh event diisi di draft. Klik Publish events.", "ok");
     return;
@@ -439,14 +472,20 @@ export async function loadEvents() {
     configVersion: data.configVersion || "1.0.0",
     events: Array.isArray(data.events) ? data.events.map(normalizeEvent) : [],
   };
+  eventsDirty = false;
   if (!draftEvents.events.length) {
     draftEvents.events = sampleEvents();
+    eventsDirty = true;
     refreshEventPreview();
     setEventStatus("Dokumen kosong — contoh event diisi di draft. Klik Publish events.", "ok");
     return;
   }
   refreshEventPreview();
-  setEventStatus(`Loaded events v${draftEvents.configVersion} (${draftEvents.events.length})`, "ok");
+  const withImage = draftEvents.events.filter((e) => e.imageUrl).length;
+  setEventStatus(
+    `Loaded events v${draftEvents.configVersion} (${draftEvents.events.length}, ${withImage} ber-gambar)`,
+    "ok"
+  );
 }
 
 async function publishEvents() {
@@ -460,11 +499,17 @@ async function publishEvents() {
   setEventStatus("Publishing events...");
   try {
     await setDoc(eventDocRef(), payload, { merge: false });
+    eventsDirty = false;
     refreshEventPreview();
-    setEventStatus("Published ke events_cms/current", "ok");
+    const withImage = draftEvents.events.filter((e) => e.imageUrl).length;
+    setEventStatus(
+      `Published ke events_cms/current (${draftEvents.events.length} event, ${withImage} ber-gambar)`,
+      "ok"
+    );
   } catch (error) {
     console.error(error);
     setEventStatus(error.message || "Gagal publish events", "err");
+    throw error;
   } finally {
     eventPublishBtn.disabled = false;
   }
@@ -507,13 +552,22 @@ async function saveEvent(event) {
     return;
   }
 
-  const existing = draftEvents.events.find((e) => e.id === id);
+  const existing =
+    draftEvents.events.find((e) => e.id === id) ||
+    (editingEventId ? draftEvents.events.find((e) => e.id === editingEventId) : null);
   eventSaveBtn.disabled = true;
   try {
-    let imageUrl = existing?.imageUrl || "";
+    // Pertahankan gambar lama saat edit tanpa upload ulang.
+    let imageUrl = currentImageUrl || existing?.imageUrl || "";
     if (pendingImage) {
       setEventStatus(`Upload gambar ${id}...`);
       imageUrl = await uploadEventImage(id, pendingImage);
+      currentImageUrl = imageUrl;
+    }
+
+    if (!imageUrl) {
+      // Tidak wajib, tapi ingatkan agar tidak kaget saat refresh.
+      console.warn("[Events] Simpan tanpa imageUrl:", id);
     }
 
     const item = normalizeEvent({
@@ -538,13 +592,21 @@ async function saveEvent(event) {
       sortOrder: Number(eventSortOrderInput?.value) || 0,
     });
 
+    // Jika ID diganti saat edit, hapus entri lama.
+    if (editingEventId && editingEventId !== id) {
+      draftEvents.events = draftEvents.events.filter((e) => e.id !== editingEventId);
+    }
+
     const idx = draftEvents.events.findIndex((e) => e.id === id);
     if (idx === -1) draftEvents.events.push(item);
     else draftEvents.events[idx] = item;
 
+    eventsDirty = true;
     refreshEventPreview();
     resetEventForm();
-    setEventStatus(`Event ${id} di draft. Klik Publish events.`, "ok");
+    setEventStatus(`Event ${id} disimpan — publishing ke Firebase...`, "ok");
+    // Publish otomatis agar refresh browser / Reload tidak menghilangkan gambar.
+    await publishEvents();
   } catch (error) {
     console.error(error);
     setEventFormError(error.message || "Gagal simpan event");
@@ -569,6 +631,7 @@ async function deleteEvent(id) {
   }
 
   if (editingEventId === id) resetEventForm();
+  eventsDirty = true;
   refreshEventPreview();
   setEventStatus(`${id} dihapus dari draft. Publish untuk apply.`, "ok");
 }
@@ -578,6 +641,7 @@ function editEvent(id) {
   if (!item) return;
   editingEventId = id;
   pendingImage = null;
+  currentImageUrl = item.imageUrl || "";
   if (eventIdInput) eventIdInput.value = item.id;
   if (eventStartAtInput) eventStartAtInput.value = fromIsoToLocal(item.startAt);
   if (eventEndAtInput) eventEndAtInput.value = fromIsoToLocal(item.endAt);
@@ -597,15 +661,8 @@ function editEvent(id) {
   if (eventSortOrderInput) eventSortOrderInput.value = String(item.sortOrder ?? 0);
   updateObjectiveUnitLabel();
   updateRewardFieldsVisibility();
-  if (item.imageUrl) {
-    eventImagePreview.src = item.imageUrl;
-    eventImagePreview.hidden = false;
-    eventPreviewPlaceholder.hidden = true;
-  } else {
-    eventImagePreview.hidden = true;
-    eventPreviewPlaceholder.hidden = false;
-  }
-  if (eventSaveBtn) eventSaveBtn.textContent = "Update draft";
+  showImagePreview(currentImageUrl);
+  if (eventSaveBtn) eventSaveBtn.textContent = "Update & publish";
 }
 
 function seedSampleEvents() {
@@ -616,6 +673,7 @@ function seedSampleEvents() {
     draftEvents.events.push({ ...sample });
     added += 1;
   }
+  if (added > 0) eventsDirty = true;
   refreshEventPreview();
   setEventStatus(
     added > 0
@@ -633,9 +691,7 @@ function setPendingImage(file) {
   pendingImage = file;
   setEventFormError("");
   const url = URL.createObjectURL(file);
-  eventImagePreview.src = url;
-  eventImagePreview.hidden = false;
-  eventPreviewPlaceholder.hidden = true;
+  showImagePreview(url);
 }
 
 async function loadCompletions(eventId) {
@@ -734,13 +790,16 @@ function wireEventUi() {
 
   eventForm.addEventListener("submit", saveEvent);
   eventResetBtn?.addEventListener("click", resetEventForm);
-  eventPublishBtn?.addEventListener("click", () => publishEvents());
+  eventPublishBtn?.addEventListener("click", () => {
+    publishEvents().catch((e) => setEventStatus(e.message || "Gagal publish", "err"));
+  });
   eventReloadBtn?.addEventListener("click", () => {
-    loadEvents().catch((e) => setEventStatus(e.message || "Gagal reload", "err"));
+    loadEvents({ force: true }).catch((e) => setEventStatus(e.message || "Gagal reload", "err"));
   });
   eventSeedBtn?.addEventListener("click", () => seedSampleEvents());
   eventConfigVersionInput?.addEventListener("change", () => {
     draftEvents.configVersion = eventConfigVersionInput.value.trim() || "1.0.0";
+    eventsDirty = true;
     refreshEventPreview();
   });
   eventObjectiveKind?.addEventListener("change", updateObjectiveUnitLabel);

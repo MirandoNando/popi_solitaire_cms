@@ -460,6 +460,7 @@ function wireTabs() {
         loadQuotes().catch((e) => setQuoteStatus(e.message || "Gagal load", "err"));
       }
       if (name === "events" && auth.currentUser && typeof window.loadEvents === "function") {
+        // Jangan force — kalau draft dirty (gambar belum di server), minta konfirmasi dulu.
         window.loadEvents().catch((e) => console.error(e));
       }
     });
