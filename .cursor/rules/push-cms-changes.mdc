@@ -1,0 +1,14 @@
+---
+description: Auto commit and push CMS changes to GitHub immediately.
+alwaysApply: true
+---
+
+# Push CMS changes immediately
+
+Whenever files in this CMS repo (`popi_solitaire_cms`) are modified (HTML/JS/CSS/rules/README/etc.):
+
+1. Commit the CMS changes.
+2. `git push` to `origin` on the current branch right away.
+3. Return the commit and remote URL when done.
+
+Do not wait for the user to ask to push CMS updates. Unity game scripts outside this repo are not covered.
