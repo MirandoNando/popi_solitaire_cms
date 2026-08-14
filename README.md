@@ -117,7 +117,7 @@ Publish config ke Firestore `events_cms/current`. Unity akan baca untuk float qu
 | `objectiveDetailEn` / `objectiveDetailId` | Detail cara objective dihitung |
 | `objective.kind` | Tipe quest (lihat daftar di bawah) |
 | `objective.target` | Target angka |
-| `reward` | points / title / lives / none |
+| `reward` | `points` / `score` / `lives` / `hints` / `title` / `none` |
 | `enabled` | Aktif/nonaktif |
 | `sortOrder` | Urutan tampil |
 

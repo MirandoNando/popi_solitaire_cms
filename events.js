@@ -59,9 +59,11 @@ export const OBJECTIVE_KINDS = [
 ];
 
 const REWARD_TYPES = [
-  { value: "points", label: "Points" },
-  { value: "title", label: "Title / gelar" },
+  { value: "points", label: "Points (profil)" },
+  { value: "score", label: "Score" },
   { value: "lives", label: "Lives" },
+  { value: "hints", label: "Hint extra" },
+  { value: "title", label: "Title / gelar" },
   { value: "none", label: "Tanpa reward" },
 ];
 
